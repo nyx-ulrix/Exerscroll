@@ -9,7 +9,8 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+copy /Y "build\app\outputs\apk\release\Exerscroll.apk" "build\app\outputs\flutter-apk\Exerscroll.apk" >nul 2>&1
 echo.
-echo APK: build\app\outputs\flutter-apk\app-release.apk
+echo APK: build\app\outputs\flutter-apk\Exerscroll.apk
 pause
 exit /b 0

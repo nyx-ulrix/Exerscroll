@@ -58,9 +58,17 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
         });
         return;
       }
+      CameraDescription camera;
+      try {
+        camera = _cameras.firstWhere(
+          (c) => c.lensDirection == CameraLensDirection.front,
+        );
+      } catch (_) {
+        camera = _cameras.first;
+      }
       _controller = CameraController(
-        _cameras.first,
-        ResolutionPreset.medium,
+        camera,
+        ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
@@ -193,8 +201,8 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    height: constraints.maxWidth * 9 / 16,
+                  child: AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio,
                     child: CameraPreview(_controller!),
                   ),
                 ),

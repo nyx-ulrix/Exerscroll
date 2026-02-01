@@ -1,12 +1,39 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/exercise_config.dart';
 import '../../core/providers/app_state_provider.dart';
+import '../../core/services/overlay_service.dart';
 import 'widgets/exercise_settings_slider.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _overlayService = OverlayService.instance;
+  bool _overlayGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isAndroid) _checkOverlayPermission();
+  }
+
+  Future<void> _checkOverlayPermission() async {
+    final granted = await _overlayService.isOverlayPermissionGranted();
+    if (mounted) setState(() => _overlayGranted = granted);
+  }
+
+  Future<void> _requestOverlayPermission() async {
+    await _overlayService.requestOverlayPermission();
+    await _checkOverlayPermission();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +44,39 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (Platform.isAndroid) ...[
+                const _SectionHeader(title: 'App Blocking'),
+                Card(
+                  child: ListTile(
+                    leading: Icon(
+                      _overlayGranted
+                          ? Icons.check_circle_rounded
+                          : Icons.warning_rounded,
+                      color: _overlayGranted
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.error,
+                    ),
+                    title: const Text('Display over other apps'),
+                    subtitle: Text(
+                      _overlayGranted
+                          ? 'App blocking overlay is enabled'
+                          : 'Required for blocking apps when in use',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                    trailing: _overlayGranted
+                        ? null
+                        : FilledButton(
+                            onPressed: _requestOverlayPermission,
+                            child: const Text('Enable App Blocking'),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
               const _SectionHeader(title: 'Exercise Rewards'),
               ...ExerciseType.values.map((type) {
                 final config = provider.getConfigFor(type);

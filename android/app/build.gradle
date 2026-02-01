@@ -42,11 +42,18 @@ android {
         targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        setProperty("archivesBaseName", "Exerscroll")
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            output.outputFileName = "Exerscroll.apk"
         }
     }
 }

@@ -112,7 +112,9 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
     if (_controller == null ||
         !_controller!.value.isInitialized ||
         _isProcessing ||
-        !_sessionActive) return;
+        !_sessionActive) {
+      return;
+    }
 
     _isProcessing = true;
     try {

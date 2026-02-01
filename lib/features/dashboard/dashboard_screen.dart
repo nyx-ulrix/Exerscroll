@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/providers/app_state_provider.dart';
 import '../app_selector/app_selector_screen.dart';
 import '../exercise/exercise_session_screen.dart';
 import '../settings/settings_screen.dart';

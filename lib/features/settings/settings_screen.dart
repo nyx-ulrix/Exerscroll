@@ -16,7 +16,7 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _SectionHeader(title: 'Exercise values'),
+              const _SectionHeader(title: 'Exercise values'),
               Card(
                 child: Column(
                   children: ExerciseType.values.map((type) {
@@ -41,7 +41,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              _SectionHeader(title: 'Blocking schedule'),
+              const _SectionHeader(title: 'Blocking schedule'),
               Card(
                 child: SwitchListTile(
                   title: const Text('Schedule blocking'),
@@ -72,7 +72,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 24),
-              _SectionHeader(title: 'About'),
+              const _SectionHeader(title: 'About'),
               ListTile(
                 leading: const Icon(Icons.info_outline_rounded),
                 title: const Text('ExerScroll v1.0'),

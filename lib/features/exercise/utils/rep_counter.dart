@@ -35,7 +35,9 @@ class RepCounter {
         leftElbow == null ||
         rightElbow == null ||
         leftWrist == null ||
-        rightWrist == null) return null;
+        rightWrist == null) {
+      return null;
+    }
 
     final shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
     final elbowY = (leftElbow.y + rightElbow.y) / 2;
@@ -68,7 +70,9 @@ class RepCounter {
         rightShoulder == null ||
         leftElbow == null ||
         rightElbow == null ||
-        nose == null) return null;
+        nose == null) {
+      return null;
+    }
 
     final shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
     final elbowY = (leftElbow.y + rightElbow.y) / 2;

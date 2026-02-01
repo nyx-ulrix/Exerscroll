@@ -78,7 +78,7 @@ class _AddAppSheetState extends State<AddAppSheet> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: _limit,
+              initialValue: _limit,
               decoration: const InputDecoration(
                 labelText: 'Daily limit (minutes)',
               ),

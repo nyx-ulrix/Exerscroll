@@ -1,0 +1,17 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+
+# Android
+android/local.properties
+*.jks
+
+# IDE
+.idea/
+.vscode/
+
+# Misc
+*.log
+*.swp

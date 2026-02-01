@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/exercise_config.dart';
 import '../../core/providers/app_state_provider.dart';
-import 'utils/rep_counter.dart';
+import '../../core/services/pose_detector_service.dart';
 
 class ExerciseSessionScreen extends StatefulWidget {
   const ExerciseSessionScreen({super.key});
@@ -25,7 +25,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
   late PoseDetector _poseDetector;
   ExerciseType _exerciseType = ExerciseType.pushup;
   int _reps = 0;
-  RepCounter? _repCounter;
+  PoseDetectorService? _poseService;
   Timer? _captureTimer;
   bool _sessionActive = false;
 
@@ -82,7 +82,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
     final provider = context.read<AppStateProvider>();
     final config = provider.getConfigFor(_exerciseType);
     if (!config.enabled) return;
-    _repCounter = RepCounter(exerciseType: _exerciseType);
+    _poseService = PoseDetectorService(exerciseType: _exerciseType);
     setState(() {
       _sessionActive = true;
       _reps = 0;
@@ -124,7 +124,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
 
       if (poses.isNotEmpty && mounted) {
         final pose = poses.first;
-        final count = _repCounter?.tick(pose);
+        final count = _poseService?.processPose(pose);
         if (count != null && count > _reps) {
           setState(() => _reps = count);
         }
@@ -212,7 +212,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
                               label: Text(t.label),
                               icon: Icon(t == ExerciseType.pushup
                                   ? Icons.fitness_center_rounded
-                                  : Icons.pull_rounded),
+                                  : Icons.sports_gymnastics),
                             ))
                         .toList(),
                     selected: {_exerciseType},

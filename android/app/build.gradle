@@ -24,8 +24,8 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.exerscroll.exerscroll"
-    compileSdk 34
-    ndkVersion "25.1.8937393"
+    compileSdk 36
+    ndkVersion "27.0.12077973"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -39,7 +39,7 @@ android {
     defaultConfig {
         applicationId "com.exerscroll.exerscroll"
         minSdk 28
-        targetSdk 34
+        targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }

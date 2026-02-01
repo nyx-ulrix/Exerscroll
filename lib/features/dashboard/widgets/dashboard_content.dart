@@ -214,7 +214,7 @@ class _StatsOverview extends StatelessWidget {
                 ),
                 Expanded(
                   child: _StatTile(
-                    icon: Icons.pull_rounded,
+                    icon: Icons.fitness_center_rounded,
                     label: 'Pull-ups',
                     value: '${stats.pullupReps}',
                   ),
@@ -316,7 +316,7 @@ class _WeeklyChart extends StatelessWidget {
                         const SizedBox(height: 4),
                         Container(
                           width: 24,
-                          height: 80 * height,
+                          height: 80.0 * height,
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primary.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(4),

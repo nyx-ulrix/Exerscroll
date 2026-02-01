@@ -1,0 +1,23 @@
+// lib/features/app_selector/common_apps_list.dart
+final List<({String name, String package})> commonApps = [
+  (name: 'Instagram', package: 'com.instagram.android'),
+  (name: 'TikTok', package: 'com.zhiliaoapp.musically'),
+  (name: 'YouTube', package: 'com.google.android.youtube'),
+  (name: 'YouTube Music', package: 'com.google.android.apps.youtube.music'),
+  (name: 'Facebook', package: 'com.facebook.katana'),
+  (name: 'Facebook Lite', package: 'com.facebook.lite'),
+  (name: 'Messenger', package: 'com.facebook.orca'),
+  (name: 'WhatsApp', package: 'com.whatsapp'),
+  (name: 'Snapchat', package: 'com.snapchat.android'),
+  (name: 'Twitter / X', package: 'com.twitter.android'),
+  (name: 'Reddit', package: 'com.reddit.frontpage'),
+  (name: 'Pinterest', package: 'com.pinterest'),
+  (name: 'LinkedIn', package: 'com.linkedin.android'),
+  (name: 'Discord', package: 'com.discord'),
+  (name: 'Telegram', package: 'org.telegram.messenger'),
+  (name: 'Netflix', package: 'com.netflix.mediaclient'),
+  (name: 'Spotify', package: 'com.spotify.music'),
+  (name: 'Twitch', package: 'tv.twitch.android.app'),
+  (name: 'Chrome', package: 'com.android.chrome'),
+  (name: 'Gmail', package: 'com.google.android.gm'),
+];

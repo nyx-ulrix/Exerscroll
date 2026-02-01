@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/blocked_app.dart';
 import '../../core/providers/app_state_provider.dart';
 import 'widgets/add_app_sheet.dart';
+import 'widgets/installed_apps_sheet.dart';
 
 class AppSelectorScreen extends StatelessWidget {
   const AppSelectorScreen({super.key});
@@ -51,9 +52,15 @@ class AppSelectorScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
+                      onPressed: () => _showInstalledAppsSheet(context, provider),
+                      icon: const Icon(Icons.apps_rounded),
+                      label: const Text('Quick add common apps'),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
                       onPressed: () => _showAddAppSheet(context, provider),
                       icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add app'),
+                      label: const Text('Add app manually'),
                     ),
                   ],
                 ),
@@ -106,13 +113,21 @@ class AppSelectorScreen extends StatelessWidget {
       ),
       floatingActionButton: Consumer<AppStateProvider>(
         builder: (context, provider, _) {
-          if (provider.blockedApps.isEmpty) return const SizedBox.shrink();
           return FloatingActionButton(
-            onPressed: () => _showAddAppSheet(context, provider),
+            onPressed: () => _showInstalledAppsSheet(context, provider),
             child: const Icon(Icons.add_rounded),
           );
         },
       ),
+    );
+  }
+
+  void _showInstalledAppsSheet(BuildContext context, AppStateProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => const InstalledAppsSheet(),
     );
   }
 
@@ -193,8 +208,8 @@ class AppSelectorScreen extends StatelessWidget {
         title: const Text('About app blocking'),
         content: const Text(
           'ExerScroll blocks selected apps until you earn time by exercising.\n\n'
-          'On Android, you may need to grant "Usage access" in Settings for app blocking to work. '
-          'The blocking overlay requires "Display over other apps" permission.',
+          'Use "Quick add common apps" for Instagram, TikTok, YouTube, etc., '
+          'or "Add app manually" with any package name. On Android, grant "Usage access" for blocking.',
         ),
         actions: [
           TextButton(

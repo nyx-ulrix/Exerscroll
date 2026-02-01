@@ -15,12 +15,19 @@ A cross-platform app that blocks selected apps until you earn time by performing
 # First-time setup (adds Gradle wrapper, platform files)
 flutter create .
 
+# Check environment (fix any issues before building)
+flutter doctor -v
+
 # Install dependencies and run
 flutter pub get
 flutter run
 ```
 
 Or use the scripts (from project root):
+
+- `scripts\doctor.bat` - Run `flutter doctor -v` to diagnose/fix environment
+- `scripts\setup.bat` - Install dependencies
+- `scripts\run.bat` - Run the app
 ```bash
 scripts\setup.bat   # Install dependencies
 scripts\run.bat     # Run the app
@@ -75,6 +82,26 @@ flutter run
 flutter devices
 flutter run -d <device_id>
 ```
+
+## Build APK
+
+```bash
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
+
+# Or: scripts\build_apk.bat
+```
+
+## Flutter doctor fixes
+
+If `flutter doctor -v` reports issues:
+
+| Issue | Fix |
+|-------|-----|
+| **Flutter not in PATH** | Add Flutter `bin` to system PATH (e.g. `C:\flutter\bin` or `%LOCALAPPDATA%\flutter\bin`) |
+| **Android licenses** | Run `flutter doctor --android-licenses` and accept |
+| **Android SDK** | Install Android Studio or command-line tools; set ANDROID_HOME |
+| **No devices** | Start emulator or connect a physical device |
 
 ## Permissions
 

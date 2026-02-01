@@ -29,6 +29,9 @@ class ExerciseConfig {
   final int minimumRepsToCredit;
   final bool enabled;
 
+  String get id => type.name;
+  String get name => type.label;
+
   const ExerciseConfig({
     required this.type,
     this.minutesPerRep = 1.0,

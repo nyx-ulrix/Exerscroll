@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/exercise_config.dart';
 import '../../core/providers/app_state_provider.dart';
+import 'widgets/exercise_settings_slider.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -16,31 +17,19 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const _SectionHeader(title: 'Exercise values'),
-              Card(
-                child: Column(
-                  children: ExerciseType.values.map((type) {
-                    final config = provider.getConfigFor(type);
-                    return ListTile(
-                      title: Text(config.type.label),
-                      subtitle: Text(
-                        '${config.minutesPerRep} min per rep',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                      trailing: Switch(
-                        value: config.enabled,
-                        onChanged: (v) => provider.updateExerciseConfig(
-                          config.copyWith(enabled: v),
-                        ),
-                      ),
-                      onTap: () => _showExerciseConfig(context, provider, config),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 24),
+              const _SectionHeader(title: 'Exercise Rewards'),
+              ...ExerciseType.values.map((type) {
+                final config = provider.getConfigFor(type);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ExerciseSettingsSlider(
+                    config: config,
+                    onSave: (updated) => provider.updateExerciseConfig(updated),
+                    onTapAdvanced: () => _showExerciseConfig(context, provider, config),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
               const _SectionHeader(title: 'Blocking schedule'),
               Card(
                 child: SwitchListTile(

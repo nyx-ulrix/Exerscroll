@@ -18,6 +18,16 @@ class StorageService {
     _prefs ??= await SharedPreferences.getInstance();
   }
 
+  /// Reloads the shared preferences from disk.
+  /// Useful when background tasks might have updated the storage.
+  Future<void> reload() async {
+    if (_prefs != null) {
+      await _prefs!.reload();
+    } else {
+      await init();
+    }
+  }
+
   Future<List<BlockedApp>> getBlockedApps() async {
     await init();
     final json = _prefs!.getString(AppConstants.storageKeyBlockedApps);

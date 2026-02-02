@@ -10,6 +10,9 @@ import '../../core/providers/app_state_provider.dart';
 import '../../core/services/pose_detector_service.dart';
 import '../../services/fold_detector.dart';
 
+/// Screen for live exercise tracking using the device camera.
+/// Uses BlazePose via MediaPipe ML Kit to detect pushups/pullups
+/// and credit time to the user's time bank.
 class ExerciseSessionScreen extends StatefulWidget {
   const ExerciseSessionScreen({super.key});
 
@@ -18,11 +21,14 @@ class ExerciseSessionScreen extends StatefulWidget {
 }
 
 class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
+  // Camera
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
   bool _isInitialized = false;
   bool _isProcessing = false;
   String? _error;
+
+  // Pose detection
   late PoseDetector _poseDetector;
   ExerciseType _exerciseType = ExerciseType.pushup;
   int _reps = 0;

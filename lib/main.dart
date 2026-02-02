@@ -4,20 +4,31 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import 'core/providers/app_state_provider.dart';
+import 'core/services/background_usage_monitor.dart';
 import 'core/theme/app_theme.dart';
 import 'features/blocker/blocker_overlay_app.dart';
 import 'features/dashboard/dashboard_screen.dart';
 
-/// Overlay entry point - runs in separate isolate when overlay is shown.
+/// Entry point for the blocker overlay running in a separate isolate.
+/// This is shown on top of blocked apps when user has no remaining time.
+/// Runs in its own isolate to avoid conflicts with main app.
 @pragma('vm:entry-point')
 void overlayMain() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const BlockerOverlayApp());
 }
 
+/// Main app entry point.
+/// Initializes permissions, orientation, background monitoring, and starts the dashboard.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize background usage monitoring (runs even when app is closed)
+  BackgroundUsageMonitor.initialize();
+
+  // Request camera permission for pose detection
   await Permission.camera.request();
+  // Lock app to portrait/landscape modes (no reverse)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

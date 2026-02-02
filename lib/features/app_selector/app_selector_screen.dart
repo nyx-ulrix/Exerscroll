@@ -23,91 +23,158 @@ class AppSelectorScreen extends StatelessWidget {
       ),
       body: Consumer<AppStateProvider>(
         builder: (context, provider, _) {
-          final apps = provider.blockedApps;
-          if (apps.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.apps_rounded,
-                      size: 80,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'No apps blocked yet',
-                      style: Theme.of(context).textTheme.titleLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add apps you want to limit. You\'ll need to earn time through exercise to use them.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    FilledButton.icon(
-                      onPressed: () => _showInstalledAppsSheet(context, provider),
-                      icon: const Icon(Icons.apps_rounded),
-                      label: const Text('Quick add common apps'),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: () => _showAddAppSheet(context, provider),
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add app manually'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: apps.length,
-            itemBuilder: (context, index) {
-              final app = apps[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.apps_rounded,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  title: Text(app.displayName),
-                  subtitle: Text(
-                    '${app.dailyLimitMinutes} min daily limit',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+          // Progress tracker logic
+          final remaining = (provider.bankedMinutes - provider.usedTodayMinutes)
+              .clamp(0, double.infinity);
+          final progress = provider.bankedMinutes > 0
+              ? (remaining / provider.bankedMinutes).clamp(0.0, 1.0)
+              : 0.0;
+          final statusColor = remaining > 60
+              ? Colors.green
+              : remaining > 15
+                  ? Colors.orange
+                  : Colors.red;
+          final hours = remaining.toInt() ~/ 60;
+          final minutes = (remaining.toInt() % 60);
+
+          return Column(
+            children: [
+              // Progress Card
+              Card(
+                margin: const EdgeInsets.all(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_rounded),
-                        onPressed: () => _showEditAppSheet(context, provider, app),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Time remaining',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          Text(
+                            '$hours:${minutes.toString().padLeft(2, '0')} hrs',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_rounded,
-                          color: Theme.of(context).colorScheme.error,
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation(statusColor),
                         ),
-                        onPressed: () => _confirmRemove(context, provider, app),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Used today: ${provider.usedTodayMinutes.toStringAsFixed(1)} min',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          Text(
+                            'Earned: ${provider.bankedMinutes.toStringAsFixed(1)} min',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              );
-            },
+              ),
+
+              // App List
+              Expanded(
+                child: provider.blockedApps.isEmpty
+                    ? _buildEmptyState(context, provider)
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+                        itemCount: provider.blockedApps.length,
+                        itemBuilder: (context, index) {
+                          final app = provider.blockedApps[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                child: Icon(
+                                  Icons.apps_rounded,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              title: Text(app.displayName),
+                              subtitle: Text(
+                                '${app.dailyLimitMinutes} min daily limit',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_rounded),
+                                    onPressed: () => _showEditAppSheet(
+                                        context, provider, app),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.delete_rounded,
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                    onPressed: () =>
+                                        _confirmRemove(context, provider, app),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),
@@ -122,7 +189,55 @@ class AppSelectorScreen extends StatelessWidget {
     );
   }
 
-  void _showInstalledAppsSheet(BuildContext context, AppStateProvider provider) {
+  Widget _buildEmptyState(BuildContext context, AppStateProvider provider) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.apps_rounded,
+              size: 80,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant
+                  .withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No apps blocked yet',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add apps you want to limit. You\'ll need to earn time through exercise to use them.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => _showInstalledAppsSheet(context, provider),
+              icon: const Icon(Icons.apps_rounded),
+              label: const Text('Quick add common apps'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => _showAddAppSheet(context, provider),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add app manually'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showInstalledAppsSheet(
+      BuildContext context, AppStateProvider provider) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -149,10 +264,8 @@ class AppSelectorScreen extends StatelessWidget {
   }
 
   void _showEditAppSheet(
-    BuildContext context,
-    AppStateProvider provider,
-    BlockedApp app,
-  ) {
+      BuildContext context, AppStateProvider provider, BlockedApp app) {
+    // Re-use AddAppSheet for editing, pre-filled
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -161,9 +274,9 @@ class AppSelectorScreen extends StatelessWidget {
         initialPackage: app.packageName,
         initialLimit: app.dailyLimitMinutes,
         onAdd: (name, package, limit) async {
-          await provider.updateBlockedApp(app.copyWith(
-            displayName: name,
+          await provider.updateBlockedApp(BlockedApp(
             packageName: package,
+            displayName: name,
             dailyLimitMinutes: limit,
           ));
           if (context.mounted) Navigator.pop(context);

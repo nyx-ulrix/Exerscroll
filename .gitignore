@@ -8,10 +8,13 @@ build/
 android/local.properties
 *.jks
 
-# IDE
-.idea/
-.vscode/
+# Build outputs - APKs
+*.apk
+*.apk.sha1
+app-release.apk
+app-debug.apk
+build/app/outputs/
+build/app/outputs/apk/
+build/app/outputs/flutter-apk/
+Exerscroll.apk
 
-# Misc
-*.log
-*.swp

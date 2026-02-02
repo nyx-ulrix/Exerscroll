@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/providers/app_state_provider.dart';
 import '../app_selector/app_selector_screen.dart';
 import '../exercise/exercise_session_screen.dart';
 import '../settings/settings_screen.dart';
@@ -12,8 +14,31 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Called when app is resumed from background.
+  /// Re-checks app usage and shows overlay if user is out of time.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('[ExerScroll] App resumed from background');
+      context.read<AppStateProvider>().onAppResume();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

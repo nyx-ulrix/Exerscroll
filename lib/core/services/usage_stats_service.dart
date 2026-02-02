@@ -1,8 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:usage_stats/usage_stats.dart';
 import '../models/app_info.dart';
-import 'storage_service.dart';
 
+/// Service for tracking app usage statistics across the device.
+/// Uses platform-specific channels to access Android's UsageStatsManager API.
 class UsageStatsService {
   UsageStatsService._();
   static UsageStatsService? _instance;
@@ -10,7 +11,6 @@ class UsageStatsService {
 
   static const MethodChannel _channel =
       MethodChannel('com.exerscroll.exerscroll/overlay');
-  final _storage = StorageService.instance;
 
   Future<List<AppInfo>> getAllApps() async {
     try {
@@ -27,23 +27,20 @@ class UsageStatsService {
     }
   }
 
+  /// Returns the cumulative foreground time (in minutes) for a list of package names today.
+  /// This sums up all foreground time for the specified apps from midnight to now.
+  /// Returns 0.0 if no usage found or on error.
   Future<double> getCumulativeUsageToday(List<String> packageNames) async {
     if (packageNames.isEmpty) return 0;
 
     final now = DateTime.now();
-    // Start of day
+    // Start of day (midnight)
     final startOfDay = DateTime(now.year, now.month, now.day);
-    // End of day
+    // End of day (23:59:59)
     final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
     try {
       double totalMilliseconds = 0;
-      // Some devices work better with queryAndAggregateUsageStats if available,
-      // but usage_stats package exposes queryUsageStats.
-      // We'll stick to queryUsageStats but be robust.
-
-      // Attempt to query per-package if list is small to avoid huge list?
-      // No, queryUsageStats takes range.
 
       final List<UsageInfo> stats = await UsageStats.queryUsageStats(
         startOfDay,

@@ -1,8 +1,6 @@
 package com.exerscroll.exerscroll
 
-import android.app.Activity
 import android.app.AppOpsManager
-import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -14,7 +12,6 @@ import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
-import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -106,30 +103,5 @@ class MainActivity: FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Ensure service is running
-        startOverlayService()
-
-        application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: Activity) {
-                // Ensure service is running when app comes to foreground
-                startOverlayService()
-            }
-            override fun onActivityPaused(activity: Activity) {}
-            override fun onActivityStarted(activity: Activity) {}
-            override fun onActivityDestroyed(activity: Activity) {}
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-            override fun onActivityStopped(activity: Activity) {}
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-        })
-    }
-
-    private fun startOverlayService() {
-        try {
-            val intent = Intent(this, OverlayService::class.java)
-            ContextCompat.startForegroundService(this, intent)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 }

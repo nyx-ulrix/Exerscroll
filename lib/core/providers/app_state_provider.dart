@@ -5,15 +5,25 @@ import 'package:flutter/foundation.dart';
 import '../models/blocked_app.dart';
 import '../models/exercise_config.dart';
 import '../models/time_bank.dart';
+import '../services/background_usage_monitor.dart';
 import '../services/overlay_service.dart';
 import '../services/storage_service.dart';
 import '../services/usage_stats_service.dart';
 
+/// Main application state provider using Provider pattern.
+/// Manages:
+/// - Blocked apps and their configuration
+/// - Time bank (earned vs used minutes)
+/// - Exercise configurations per exercise type
+/// - Daily statistics and usage tracking
+/// - App blocking schedule (optional time-based blocking)
+/// - Overlay display when time runs out
 class AppStateProvider extends ChangeNotifier {
   final _storage = StorageService.instance;
   final _usageService = UsageStatsService.instance;
   final _overlayService = OverlayService.instance;
 
+  // === State ===
   List<BlockedApp> _blockedApps = [];
   List<ExerciseConfig> _exerciseConfigs = [];
   double _bankedMinutes = 0;
@@ -26,7 +36,6 @@ class AppStateProvider extends ChangeNotifier {
   int _scheduleEndHour = 7;
   bool _isLoading = true;
   Timer? _usageTimer;
-  String? _lastOverlayAppPackage; // Track which app had overlay shown last
 
   List<BlockedApp> get blockedApps => List.unmodifiable(_blockedApps);
   List<ExerciseConfig> get exerciseConfigs =>
@@ -72,7 +81,12 @@ class AppStateProvider extends ChangeNotifier {
 
     await _maybeResetDailyIfNewDay();
 
+    // Reload state from storage to ensure we have the latest updates from background tasks
+    await _refreshStateFromStorage();
+
+    // Start both foreground and background usage tracking
     _startUsageTracking();
+    BackgroundUsageMonitor.instance.startPeriodicMonitoring();
 
     _isLoading = false;
     notifyListeners();
@@ -81,18 +95,67 @@ class AppStateProvider extends ChangeNotifier {
   @override
   void dispose() {
     _usageTimer?.cancel();
+    BackgroundUsageMonitor.instance.stopPeriodicMonitoring();
     super.dispose();
+  }
+
+  /// Reloads critical state from storage to sync with potential background updates
+  Future<void> _refreshStateFromStorage() async {
+    // Reload storage from disk to catch updates from background isolate
+    await _storage.reload();
+
+    _bankedMinutes =
+        (await _storage.getBankedMinutes()).clamp(0, double.infinity);
+    _usedTodayMinutes =
+        (await _storage.getUsedTodayMinutes()).clamp(0, double.infinity);
+    _lastKnownUsageTotal =
+        (await _storage.getDailyUsageTotal()).clamp(0, double.infinity);
+    _dailyStatsHistory = await _storage.getDailyStatsHistory();
+    notifyListeners();
+  }
+
+  /// Called when app resumes from background.
+  /// Checks current usage and shows overlay if user is out of time.
+  Future<void> onAppResume() async {
+    if (_blockedApps.isEmpty) return;
+
+    debugPrint('[ExerScroll] App resumed - checking usage...');
+
+    // Refresh state first to get any updates from background tasks
+    await _refreshStateFromStorage();
+
+    // Get current usage stats
+    final packages = _blockedApps.map((a) => a.packageName).toList();
+    final currentTotal = await _usageService.getCumulativeUsageToday(packages);
+
+    // Update tracking
+    if (currentTotal > _lastKnownUsageTotal) {
+      final delta = currentTotal - _lastKnownUsageTotal;
+      if (delta > 0) {
+        debugPrint(
+            '[ExerScroll] Usage detected: ${delta.toStringAsFixed(1)}min, deducting...');
+        await deductUsageTime(delta);
+        _lastKnownUsageTotal = currentTotal;
+        await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
+      }
+    }
+
+    // Check if overlay should be shown
+    await _maybeShowOverlay();
   }
 
   void _startUsageTracking() {
     _usageTimer?.cancel();
-    // Check more frequently (every 10 seconds) for faster overlay response
+    // Check every 10 seconds for app usage changes and show overlay if needed
     _usageTimer =
         Timer.periodic(const Duration(seconds: 10), (_) => _checkUsage());
-    // Check immediately too
+    // Check immediately for immediate overlay response
     _checkUsage();
   }
 
+  /// Polls device usage stats and deducts time if blocked apps were used.
+  /// Also triggers overlay display if user has no remaining time.
+  /// This runs periodically to detect app usage in real-time.
   Future<void> _checkUsage() async {
     if (_blockedApps.isEmpty) return;
 
@@ -100,20 +163,19 @@ class AppStateProvider extends ChangeNotifier {
     final currentTotal = await _usageService.getCumulativeUsageToday(packages);
 
     if (currentTotal > _lastKnownUsageTotal) {
+      // User has used more time on blocked apps since last check
       final delta = currentTotal - _lastKnownUsageTotal;
-      // Only deduct if delta is reasonable (e.g. positive)
-      // Also, if delta is huge (like > 24 hours), it might be a glitch or day change,
-      // but _maybeResetDailyIfNewDay handles day change.
       if (delta > 0) {
+        // Deduct the new usage from banked minutes
         await deductUsageTime(delta);
         _lastKnownUsageTotal = currentTotal;
         await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
 
-        // Check if we should show overlay for any blocked app
+        // Show blocking overlay if user is now out of time
         await _maybeShowOverlay();
       }
     } else if (currentTotal < _lastKnownUsageTotal) {
-      // Maybe day reset happened in OS usage stats or something
+      // Usage total went down (likely a day reset or clock adjustment)
       _lastKnownUsageTotal = currentTotal;
       await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
     }
@@ -132,7 +194,6 @@ class AppStateProvider extends ChangeNotifier {
 
     if (remainingMinutes > 0) {
       // User has time, no need to show overlay
-      _lastOverlayAppPackage = null;
       try {
         await _overlayService.closeOverlay();
         debugPrint('[ExerScroll] Overlay closed - user has time');
@@ -152,8 +213,8 @@ class AppStateProvider extends ChangeNotifier {
         await _overlayService.showBlockerOverlay(
           blockedAppName: firstApp.displayName,
           remainingMinutes: remainingMinutes.clamp(0, double.infinity),
+          usedMinutes: _usedTodayMinutes,
         );
-        _lastOverlayAppPackage = 'shown'; // Mark that overlay was shown
         debugPrint('[ExerScroll] Overlay shown successfully');
       } catch (e) {
         debugPrint('[ExerScroll] Failed to show overlay: $e');

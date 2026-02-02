@@ -3,8 +3,11 @@ package com.exerscroll.exerscroll
 import android.app.Activity
 import android.app.Application
 import android.app.AppOpsManager
+import android.app.usage.UsageStats
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -19,10 +22,15 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
+import org.json.JSONArray
+import java.util.Calendar
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.exerscroll.exerscroll/overlay"
     private val executor = Executors.newSingleThreadExecutor()
+    private val monitorExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -73,11 +81,14 @@ class MainActivity: FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Register lifecycle callbacks as requested (Note: this only tracks THIS app's activities)
+        // Register lifecycle callbacks as requested
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
-                // Logic to trigger overlay if needed when app resumes
-                // Note: The main checking logic is handled by Dart/BackgroundMonitor
+                // Monitor foreground activities of THIS app
+                val pkg = activity.packageName
+                if (isAppBlocked(pkg) && !hasEnoughTime()) {
+                    startNativeOverlay()
+                }
             }
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivityStarted(activity: Activity) {}
@@ -86,7 +97,62 @@ class MainActivity: FlutterActivity() {
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
         })
+
+        // Start background monitoring for OTHER apps (like Instagram)
+        startBackgroundMonitor()
     }
+
+    private fun startBackgroundMonitor() {
+        monitorExecutor.scheduleAtFixedRate({
+            if (hasUsageStatsPermission()) {
+                val foregroundPackage = getForegroundPackage()
+                if (foregroundPackage != null && isAppBlocked(foregroundPackage) && !hasEnoughTime()) {
+                    // Launch overlay service if blocked app is in foreground and user out of time
+                    startNativeOverlay()
+                }
+            }
+        }, 1, 1, TimeUnit.SECONDS)
+    }
+
+    private fun getForegroundPackage(): String? {
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val time = System.currentTimeMillis()
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 10, time)
+        
+        if (stats != null && stats.isNotEmpty()) {
+            val sortedStats = stats.sortedByDescending { it.lastTimeUsed }
+            return sortedStats.first().packageName
+        }
+        return null
+    }
+
+    private fun isAppBlocked(packageName: String): Boolean {
+        // Read from Flutter SharedPreferences
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val jsonString = prefs.getString("flutter.blocked_apps", null) ?: return false
+        
+        try {
+            val jsonArray = JSONArray(jsonString)
+            for (i in 0 until jsonArray.length()) {
+                val appObj = jsonArray.getJSONObject(i)
+                if (appObj.getString("packageName") == packageName) {
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
+    private fun hasEnoughTime(): Boolean {
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        // Check "banked time"
+        val banked = prefs.getDouble("flutter.time_bank", 0.0)
+        return banked > 0
+    }
+
+    private fun getInstalledApps(): List<Map<String, Any>> {
         val apps = mutableListOf<Map<String, Any>>()
         val pm = packageManager
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
@@ -141,7 +207,8 @@ class MainActivity: FlutterActivity() {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onDestroy() {
+        monitorExecutor.shutdown()
+        super.onDestroy()
     }
 }

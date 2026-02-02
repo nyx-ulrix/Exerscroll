@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,6 +9,9 @@ class OverlayService {
   OverlayService._();
   static OverlayService? _instance;
   static OverlayService get instance => _instance ??= OverlayService._();
+
+  static const MethodChannel _channel =
+      MethodChannel('com.exerscroll.exerscroll/overlay');
 
   /// Check if overlay (display over other apps) permission is granted.
   Future<bool> isOverlayPermissionGranted() async {

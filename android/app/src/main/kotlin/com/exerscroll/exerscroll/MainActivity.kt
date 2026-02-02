@@ -31,6 +31,9 @@ class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.exerscroll.exerscroll/overlay"
     private val executor = Executors.newSingleThreadExecutor()
     private val monitorExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    
+    // Track last check time to calculate deduction
+    private var lastCheckTime = 0L
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -81,10 +84,9 @@ class MainActivity: FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Register lifecycle callbacks as requested
+        // Register lifecycle callbacks
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
-                // Monitor foreground activities of THIS app
                 val pkg = activity.packageName
                 if (isAppBlocked(pkg) && !hasEnoughTime()) {
                     startNativeOverlay()
@@ -98,18 +100,32 @@ class MainActivity: FlutterActivity() {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
         })
 
-        // Start background monitoring for OTHER apps (like Instagram)
+        // Start background monitoring
         startBackgroundMonitor()
     }
 
     private fun startBackgroundMonitor() {
-        monitorExecutor.scheduleAtFixedRate({
+        monitorExecutor.scheduleAtFixedRate(Runnable {
             if (hasUsageStatsPermission()) {
+                val currentTime = System.currentTimeMillis()
                 val foregroundPackage = getForegroundPackage()
-                if (foregroundPackage != null && isAppBlocked(foregroundPackage) && !hasEnoughTime()) {
-                    // Launch overlay service if blocked app is in foreground and user out of time
-                    startNativeOverlay()
+                
+                if (foregroundPackage != null && isAppBlocked(foregroundPackage)) {
+                    if (!hasEnoughTime()) {
+                        // User is out of time -> Block immediately
+                        startNativeOverlay()
+                    } else {
+                        // User has time -> Deduct time if we haven't checked recently
+                        if (lastCheckTime > 0) {
+                            val diff = currentTime - lastCheckTime
+                            // Deduct if diff is reasonable (e.g. < 5 seconds, to avoid huge jumps after sleep)
+                            if (diff < 5000) {
+                                deductTime(diff)
+                            }
+                        }
+                    }
                 }
+                lastCheckTime = currentTime
             }
         }, 1, 1, TimeUnit.SECONDS)
     }
@@ -147,9 +163,27 @@ class MainActivity: FlutterActivity() {
 
     private fun hasEnoughTime(): Boolean {
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        // Check "banked time"
-        val banked = prefs.getDouble("flutter.time_bank", 0.0)
+        // Flutter shared_preferences stores doubles as Long bits
+        val banked = java.lang.Double.longBitsToDouble(
+            prefs.getLong("flutter.time_bank", java.lang.Double.doubleToRawLongBits(0.0))
+        )
         return banked > 0
+    }
+    
+    private fun deductTime(amountMs: Long) {
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val currentBank = java.lang.Double.longBitsToDouble(
+            prefs.getLong("flutter.time_bank", java.lang.Double.doubleToRawLongBits(0.0))
+        )
+        
+        val minutesToDeduct = amountMs / 1000.0 / 60.0
+        
+        if (minutesToDeduct > 0) {
+            val newBank = (currentBank - minutesToDeduct).coerceAtLeast(0.0)
+            prefs.edit()
+                .putLong("flutter.time_bank", java.lang.Double.doubleToRawLongBits(newBank))
+                .apply()
+        }
     }
 
     private fun getInstalledApps(): List<Map<String, Any>> {

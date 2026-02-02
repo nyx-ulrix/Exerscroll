@@ -28,7 +28,9 @@ object OverlayManager {
             val list = JSONArray(json)
             for (i in 0 until list.length()) {
                 val app = list.getJSONObject(i)
-                if (app.getString("packageName") == packageName && app.getBoolean("isBlocked")) {
+                // Check both 'isBlocked' (for backward compatibility) and 'enabled' (current field name)
+                val isEnabled = if (app.has("enabled")) app.getBoolean("enabled") else app.optBoolean("isBlocked", false)
+                if (app.getString("packageName") == packageName && isEnabled) {
                     return true
                 }
             }
@@ -40,40 +42,33 @@ object OverlayManager {
 
     fun hasTime(context: Context): Boolean {
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        // Flutter Shared Preferences stores Double as String usually containing "VGhpcyBpcyBhI..." (base64) for some versions or just Double?
-        // Actually, newer versions might use "BigDouble" prefix.
-        // Let's look at a simpler check: if we can't parse it, assume 0.
-        // But safer: Check if key exists.
-        if (!prefs.contains("flutter.time_bank")) return false
+        // Read the banked minutes (time_bank) and used minutes to calculate remaining
+        if (!prefs.contains("flutter.time_bank")) return true // If not set, allow access (safer default)
         
         try {
-            // Try reading as Double (some implementations support it)
-            // But standard Android SP doesn't.
-            // Flutter plugin usually writes as String "VGhp..." for lists, but for Double?
-            // "Double values are stored as String in Shared Preferences" -> No, actually they use "putLong" with doubleToRawLongBits sometimes?
-            // Wait, looking at shared_preferences_android implementation:
-            // It uses `putDouble` equivalent by storing as Float if it fits? No.
-            // It uses "Double" prefix string?
-            // Let's try reading as String and parsing.
-            val str = prefs.getString("flutter.time_bank", null)
-            if (str != null) {
-                if (str.startsWith("VGhpcyBpcyBhI")) { // Prefix for something?
-                   // If it's complicated encoding, we might fail.
-                   // But typically it is just a string representation of double if using basic JSON approach or similar?
-                   // NO, shared_preferences plugin 2.0+ uses standard types where possible, but Android SP has no Double.
-                   // It uses "flutter." prefix.
-                   // Docs say: "Double is stored as a string."
-                   return (str.toDoubleOrNull() ?: 0.0) > 0.5
-                }
-                 return (str.toDoubleOrNull() ?: 0.0) > 0.5
-            }
-            // Maybe it is stored as specific format?
-            // Let's assume the user has some time if we can't read it? No, better block if unsure or unblock?
-            // Safer: return false (block) if we can't verify time.
-            return false
+            // Flask SharedPreferences stores Doubles
+            val bankedStr = prefs.getString("flutter.time_bank", "0")
+            val usedStr = prefs.getString("flutter.used_today_${getTodayKey()}", "0")
+            
+            val banked = bankedStr?.toDoubleOrNull() ?: 0.0
+            val used = usedStr?.toDoubleOrNull() ?: 0.0
+            val remaining = (banked - used).coerceAtLeast(0.0)
+            
+            return remaining > 0
         } catch (e: Exception) {
-            return false
+            e.printStackTrace()
+            return true // If error reading, allow access (safer default)
         }
+    }
+    
+    private fun getTodayKey(): String {
+        val now = System.currentTimeMillis()
+        val calendar = java.util.Calendar.getInstance()
+        calendar.timeInMillis = now
+        val year = calendar.get(java.util.Calendar.YEAR)
+        val month = (calendar.get(java.util.Calendar.MONTH) + 1).toString().padStart(2, '0')
+        val day = calendar.get(java.util.Calendar.DAY_OF_MONTH).toString().padStart(2, '0')
+        return "$year-$month-$day"
     }
 }
 

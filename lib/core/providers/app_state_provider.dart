@@ -5,12 +5,14 @@ import 'package:flutter/foundation.dart';
 import '../models/blocked_app.dart';
 import '../models/exercise_config.dart';
 import '../models/time_bank.dart';
+import '../services/overlay_service.dart';
 import '../services/storage_service.dart';
 import '../services/usage_stats_service.dart';
 
 class AppStateProvider extends ChangeNotifier {
   final _storage = StorageService.instance;
   final _usageService = UsageStatsService.instance;
+  final _overlayService = OverlayService.instance;
 
   List<BlockedApp> _blockedApps = [];
   List<ExerciseConfig> _exerciseConfigs = [];
@@ -24,6 +26,7 @@ class AppStateProvider extends ChangeNotifier {
   int _scheduleEndHour = 7;
   bool _isLoading = true;
   Timer? _usageTimer;
+  String? _lastOverlayAppPackage; // Track which app had overlay shown last
 
   List<BlockedApp> get blockedApps => List.unmodifiable(_blockedApps);
   List<ExerciseConfig> get exerciseConfigs =>
@@ -56,9 +59,12 @@ class AppStateProvider extends ChangeNotifier {
 
     _blockedApps = await _storage.getBlockedApps();
     _exerciseConfigs = await _storage.getExerciseConfigs();
-    _bankedMinutes = await _storage.getBankedMinutes();
-    _usedTodayMinutes = await _storage.getUsedTodayMinutes();
-    _lastKnownUsageTotal = await _storage.getDailyUsageTotal();
+    _bankedMinutes =
+        (await _storage.getBankedMinutes()).clamp(0, double.infinity);
+    _usedTodayMinutes =
+        (await _storage.getUsedTodayMinutes()).clamp(0, double.infinity);
+    _lastKnownUsageTotal =
+        (await _storage.getDailyUsageTotal()).clamp(0, double.infinity);
     _dailyStatsHistory = await _storage.getDailyStatsHistory();
     _scheduleEnabled = await _storage.getScheduleEnabled();
     _scheduleStartHour = await _storage.getScheduleStartHour();
@@ -80,8 +86,9 @@ class AppStateProvider extends ChangeNotifier {
 
   void _startUsageTracking() {
     _usageTimer?.cancel();
+    // Check more frequently (every 10 seconds) for faster overlay response
     _usageTimer =
-        Timer.periodic(const Duration(minutes: 1), (_) => _checkUsage());
+        Timer.periodic(const Duration(seconds: 10), (_) => _checkUsage());
     // Check immediately too
     _checkUsage();
   }
@@ -101,11 +108,58 @@ class AppStateProvider extends ChangeNotifier {
         await deductUsageTime(delta);
         _lastKnownUsageTotal = currentTotal;
         await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
+
+        // Check if we should show overlay for any blocked app
+        await _maybeShowOverlay();
       }
     } else if (currentTotal < _lastKnownUsageTotal) {
       // Maybe day reset happened in OS usage stats or something
       _lastKnownUsageTotal = currentTotal;
       await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
+    }
+
+    // Also check if user is already out of time (even if usage didn't increase)
+    // This handles the case where app is reopened after being closed
+    if (remainingMinutes <= 0 && currentTotal > 0) {
+      await _maybeShowOverlay();
+    }
+  }
+
+  /// Show overlay if user has no remaining time and is using a blocked app.
+  Future<void> _maybeShowOverlay() async {
+    debugPrint(
+        '[ExerScroll] _maybeShowOverlay called. Remaining: $remainingMinutes, BlockedApps: ${_blockedApps.length}');
+
+    if (remainingMinutes > 0) {
+      // User has time, no need to show overlay
+      _lastOverlayAppPackage = null;
+      try {
+        await _overlayService.closeOverlay();
+        debugPrint('[ExerScroll] Overlay closed - user has time');
+      } catch (_) {
+        // Overlay might not be visible, ignore
+      }
+      return;
+    }
+
+    // User is out of time - show overlay immediately
+    debugPrint('[ExerScroll] User is out of time! Showing overlay...');
+    if (_blockedApps.isNotEmpty) {
+      final firstApp = _blockedApps.first;
+      try {
+        debugPrint(
+            '[ExerScroll] Attempting to show overlay for ${firstApp.displayName}');
+        await _overlayService.showBlockerOverlay(
+          blockedAppName: firstApp.displayName,
+          remainingMinutes: remainingMinutes.clamp(0, double.infinity),
+        );
+        _lastOverlayAppPackage = 'shown'; // Mark that overlay was shown
+        debugPrint('[ExerScroll] Overlay shown successfully');
+      } catch (e) {
+        debugPrint('[ExerScroll] Failed to show overlay: $e');
+      }
+    } else {
+      debugPrint('[ExerScroll] No blocked apps available');
     }
   }
 
@@ -191,8 +245,14 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   Future<void> deductUsageTime(double minutes) async {
-    _bankedMinutes = (_bankedMinutes - minutes).clamp(0, double.infinity);
-    _usedTodayMinutes += minutes;
+    // Only deduct if we have time available
+    final actualDeduction = minutes.clamp(0, _bankedMinutes);
+    if (actualDeduction <= 0) return;
+
+    _bankedMinutes =
+        (_bankedMinutes - actualDeduction).clamp(0, double.infinity);
+    _usedTodayMinutes =
+        (_usedTodayMinutes + actualDeduction).clamp(0, double.infinity);
     await _storage.saveBankedMinutes(_bankedMinutes);
     await _storage.saveUsedTodayMinutes(_usedTodayMinutes);
 
@@ -200,7 +260,8 @@ class AppStateProvider extends ChangeNotifier {
     final updated = DailyStats(
       date: stats.date,
       earnedMinutes: stats.earnedMinutes,
-      usedMinutes: stats.usedMinutes + minutes,
+      usedMinutes:
+          (stats.usedMinutes + actualDeduction).clamp(0, double.infinity),
       pushupReps: stats.pushupReps,
       pullupReps: stats.pullupReps,
     );

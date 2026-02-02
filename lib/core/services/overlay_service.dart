@@ -24,17 +24,30 @@ class OverlayService {
     String? blockedAppName,
     double remainingMinutes = 0,
   }) async {
-    await FlutterOverlayWindow.shareData(jsonEncode({
-      'blockedAppName': blockedAppName,
-      'remainingMinutes': remainingMinutes,
-    }));
-    await FlutterOverlayWindow.showOverlay(
-      height: WindowSize.matchParent,
-      width: WindowSize.matchParent,
-      alignment: OverlayAlignment.center,
-      overlayTitle: 'ExerScroll',
-      overlayContent: 'App blocking active',
-    );
+    // Check if permission is granted before attempting to show overlay
+    final hasPermission = await isOverlayPermissionGranted();
+    if (!hasPermission) {
+      // Request permission but don't fail - user can grant it in settings
+      await requestOverlayPermission();
+      return;
+    }
+
+    try {
+      await FlutterOverlayWindow.shareData(jsonEncode({
+        'blockedAppName': blockedAppName,
+        'remainingMinutes': remainingMinutes,
+      }));
+      await FlutterOverlayWindow.showOverlay(
+        height: WindowSize.matchParent,
+        width: WindowSize.matchParent,
+        alignment: OverlayAlignment.center,
+        overlayTitle: 'ExerScroll',
+        overlayContent: 'App blocking active',
+      );
+    } catch (e) {
+      print('Error showing overlay: $e');
+      rethrow;
+    }
   }
 
   /// Close the blocker overlay.

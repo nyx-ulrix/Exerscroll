@@ -1,4 +1,4 @@
-@echo off
+x@echo off
 REM Build ExerScroll APK - run from project root
 cd /d "%~dp0.."
 

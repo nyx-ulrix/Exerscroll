@@ -37,27 +37,27 @@ class UsageStatsService {
     final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
     try {
+      double totalMilliseconds = 0;
+      // Some devices work better with queryAndAggregateUsageStats if available,
+      // but usage_stats package exposes queryUsageStats.
+      // We'll stick to queryUsageStats but be robust.
+
+      // Attempt to query per-package if list is small to avoid huge list?
+      // No, queryUsageStats takes range.
+
       final List<UsageInfo> stats = await UsageStats.queryUsageStats(
         startOfDay,
         endOfDay,
       );
 
-      double totalMilliseconds = 0;
       for (var info in stats) {
         if (packageNames.contains(info.packageName)) {
-          // On some Android versions, totalTimeInForeground might be what we want
-          // usage_stats package usually returns totalTimeInForeground string or similar.
-          // Actually, looking at usage_stats package, usage info has totalTimeInForeground
           if (info.totalTimeInForeground != null) {
             totalMilliseconds +=
                 double.tryParse(info.totalTimeInForeground!) ?? 0;
           }
         }
       }
-
-      // If the above queryUsageStats doesn't work well (sometimes returns empty on some devices),
-      // we might need to query events or use a different approach.
-      // But let's assume it works for now as per requirements.
 
       return totalMilliseconds / 1000 / 60; // Return minutes
     } catch (e) {

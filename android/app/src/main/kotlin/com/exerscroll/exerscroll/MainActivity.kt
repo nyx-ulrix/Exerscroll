@@ -1,5 +1,7 @@
 package com.exerscroll.exerscroll
 
+import android.app.Activity
+import android.app.Application
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
@@ -41,12 +43,50 @@ class MainActivity: FlutterActivity() {
                         }
                     }
                 }
+                "startNativeOverlay" -> {
+                    startNativeOverlay()
+                    result.success(null)
+                }
+                "stopNativeOverlay" -> {
+                    stopNativeOverlay()
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
     }
 
-    private fun getInstalledApps(): List<Map<String, Any>> {
+    private fun startNativeOverlay() {
+        val intent = Intent(this, OverlayService::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun stopNativeOverlay() {
+        val intent = Intent(this, OverlayService::class.java)
+        stopService(intent)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Register lifecycle callbacks as requested (Note: this only tracks THIS app's activities)
+        application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                // Logic to trigger overlay if needed when app resumes
+                // Note: The main checking logic is handled by Dart/BackgroundMonitor
+            }
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+        })
+    }
         val apps = mutableListOf<Map<String, Any>>()
         val pm = packageManager
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)

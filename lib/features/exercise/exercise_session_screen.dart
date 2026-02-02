@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/exercise_config.dart';
 import '../../core/providers/app_state_provider.dart';
 import '../../core/services/pose_detector_service.dart';
+import '../../services/fold_detector.dart';
 
 class ExerciseSessionScreen extends StatefulWidget {
   const ExerciseSessionScreen({super.key});
@@ -38,7 +39,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
         model: PoseDetectionModel.accurate,
       ),
     );
-    _initCamera();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initCamera());
   }
 
   @override
@@ -60,8 +61,11 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
       }
       CameraDescription camera;
       try {
+        final isCover = mounted ? FoldDetector.isCoverScreen(context) : false;
         camera = _cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.front,
+          (c) =>
+              c.lensDirection ==
+              (isCover ? CameraLensDirection.back : CameraLensDirection.front),
         );
       } catch (_) {
         camera = _cameras.first;
@@ -249,7 +253,9 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
                           const SizedBox(height: 16),
                           Text(
                             '$_reps',
-                            style: Theme.of(context).textTheme.displayLarge
+                            style: Theme.of(context)
+                                .textTheme
+                                .displayLarge
                                 ?.copyWith(
                                     color:
                                         Theme.of(context).colorScheme.primary,
@@ -257,7 +263,9 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
                           ),
                           Text(
                             'reps',
-                            style: Theme.of(context).textTheme.titleMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(
                                     color: Theme.of(context)
                                         .colorScheme
@@ -266,7 +274,9 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
                           const SizedBox(height: 16),
                           Text(
                             'Face the camera and perform reps. End session to credit time.',
-                            style: Theme.of(context).textTheme.bodySmall
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
                                 ?.copyWith(
                                     color: Theme.of(context)
                                         .colorScheme

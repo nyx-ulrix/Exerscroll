@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/models/app_info.dart';
 import '../../../core/models/blocked_app.dart';
 import '../../../core/providers/app_state_provider.dart';
-import '../common_apps_list.dart';
+import '../../../core/services/usage_stats_service.dart';
 
-/// Bottom sheet to add common apps to block list (no device scan; Android 14+ compatible).
 class InstalledAppsSheet extends StatefulWidget {
   const InstalledAppsSheet({super.key});
 
@@ -16,18 +16,34 @@ class InstalledAppsSheet extends StatefulWidget {
 class _InstalledAppsSheetState extends State<InstalledAppsSheet> {
   final Map<String, bool> _selectedPackages = {};
   String _searchQuery = '';
+  List<AppInfo> _apps = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initSelected();
+    _loadApps();
+  }
+
+  Future<void> _loadApps() async {
+    final apps = await UsageStatsService.instance.getAllApps();
+    // Sort alphabetically
+    apps.sort((a, b) => a.name.compareTo(b.name));
+
+    if (mounted) {
+      setState(() {
+        _apps = apps;
+        _isLoading = false;
+        _initSelected();
+      });
+    }
   }
 
   void _initSelected() {
     final provider = context.read<AppStateProvider>();
     final blocked = provider.blockedApps.map((a) => a.packageName).toSet();
-    for (final app in commonApps) {
-      _selectedPackages[app.package] = blocked.contains(app.package);
+    for (final app in _apps) {
+      _selectedPackages[app.packageName] = blocked.contains(app.packageName);
     }
   }
 
@@ -37,16 +53,21 @@ class _InstalledAppsSheetState extends State<InstalledAppsSheet> {
       initialChildSize: 0.9,
       expand: false,
       builder: (context, scrollController) {
+        if (_isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
                 decoration: const InputDecoration(
-                  hintText: 'Search common apps...',
+                  hintText: 'Search installed apps...',
                   prefixIcon: Icon(Icons.search_rounded),
                 ),
-                onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+                onChanged: (v) =>
+                    setState(() => _searchQuery = v.toLowerCase()),
               ),
             ),
             Expanded(
@@ -72,28 +93,40 @@ class _InstalledAppsSheetState extends State<InstalledAppsSheet> {
 
   Widget _buildList(ScrollController scrollController) {
     final filtered = _searchQuery.isEmpty
-        ? commonApps
-        : commonApps.where((a) =>
-            a.name.toLowerCase().contains(_searchQuery) ||
-            a.package.toLowerCase().contains(_searchQuery)).toList();
+        ? _apps
+        : _apps
+            .where((a) =>
+                a.name.toLowerCase().contains(_searchQuery) ||
+                a.packageName.toLowerCase().contains(_searchQuery))
+            .toList();
 
     return ListView.builder(
       controller: scrollController,
       itemCount: filtered.length,
       itemBuilder: (context, index) {
         final app = filtered[index];
-        final isSelected = _selectedPackages[app.package] ?? false;
+        final pkg = app.packageName;
+        final isSelected = _selectedPackages[pkg] ?? false;
+
+        Widget? icon;
+        if (app.icon != null) {
+          icon = Image.memory(app.icon!, width: 40, height: 40);
+        } else {
+          icon = const Icon(Icons.android);
+        }
+
         return CheckboxListTile(
+          secondary: icon,
           title: Text(app.name),
           subtitle: Text(
-            app.package,
+            pkg,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
           value: isSelected,
           onChanged: (v) {
-            setState(() => _selectedPackages[app.package] = v ?? false);
+            setState(() => _selectedPackages[pkg] = v ?? false);
           },
         );
       },
@@ -104,11 +137,13 @@ class _InstalledAppsSheetState extends State<InstalledAppsSheet> {
     final provider = context.read<AppStateProvider>();
     final existing = provider.blockedApps.map((a) => a.packageName).toSet();
 
-    for (final app in commonApps) {
-      final selected = _selectedPackages[app.package] ?? false;
-      if (selected && !existing.contains(app.package)) {
+    for (final app in _apps) {
+      final pkg = app.packageName;
+
+      final selected = _selectedPackages[pkg] ?? false;
+      if (selected && !existing.contains(pkg)) {
         await provider.addBlockedApp(BlockedApp(
-          packageName: app.package,
+          packageName: pkg,
           displayName: app.name,
           dailyLimitMinutes: 60,
         ));

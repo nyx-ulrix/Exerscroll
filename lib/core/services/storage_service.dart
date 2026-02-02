@@ -58,9 +58,7 @@ class StorageService {
           .map((e) => ExerciseConfig.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
-      return ExerciseType.values
-          .map((t) => ExerciseConfig(type: t))
-          .toList();
+      return ExerciseType.values.map((t) => ExerciseConfig(type: t)).toList();
     }
   }
 
@@ -95,6 +93,16 @@ class StorageService {
     await _prefs!.setDouble('used_$key', minutes);
   }
 
+  Future<double> getDailyUsageTotal() async {
+    await init();
+    return _prefs!.getDouble('daily_usage_total') ?? 0;
+  }
+
+  Future<void> saveDailyUsageTotal(double minutes) async {
+    await init();
+    await _prefs!.setDouble('daily_usage_total', minutes);
+  }
+
   String _todayKey() {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -117,7 +125,8 @@ class StorageService {
   Future<void> saveDailyStats(DailyStats stats) async {
     await init();
     final history = await getDailyStatsHistory();
-    final key = '${stats.date.year}-${stats.date.month.toString().padLeft(2, '0')}-${stats.date.day.toString().padLeft(2, '0')}';
+    final key =
+        '${stats.date.year}-${stats.date.month.toString().padLeft(2, '0')}-${stats.date.day.toString().padLeft(2, '0')}';
     history[key] = stats;
     final map = history.map((k, v) => MapEntry(k, v.toJson()));
     await _prefs!.setString(

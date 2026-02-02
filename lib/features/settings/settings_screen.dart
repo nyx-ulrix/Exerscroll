@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/exercise_config.dart';
 import '../../core/providers/app_state_provider.dart';
-import '../../core/services/overlay_service.dart';
+import '../../services/overlay_manager.dart';
 import 'widgets/exercise_settings_slider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -15,24 +15,52 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  final _overlayService = OverlayService.instance;
+class _SettingsScreenState extends State<SettingsScreen>
+    with WidgetsBindingObserver {
   bool _overlayGranted = false;
+  bool _usageStatsGranted = false;
 
   @override
   void initState() {
     super.initState();
-    if (Platform.isAndroid) _checkOverlayPermission();
+    WidgetsBinding.instance.addObserver(this);
+    if (Platform.isAndroid) _checkPermissions();
   }
 
-  Future<void> _checkOverlayPermission() async {
-    final granted = await _overlayService.isOverlayPermissionGranted();
-    if (mounted) setState(() => _overlayGranted = granted);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _checkPermissions() async {
+    final overlay = await OverlayManager.hasOverlayPermission();
+    final usage = await OverlayManager.hasUsageStatsPermission();
+    if (mounted) {
+      setState(() {
+        _overlayGranted = overlay;
+        _usageStatsGranted = usage;
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissions();
+    }
   }
 
   Future<void> _requestOverlayPermission() async {
-    await _overlayService.requestOverlayPermission();
-    await _checkOverlayPermission();
+    await OverlayManager.requestOverlayPermission();
+    await Future.delayed(const Duration(seconds: 1));
+    await _checkPermissions();
+  }
+
+  Future<void> _requestUsageStatsPermission() async {
+    await OverlayManager.requestUsageStatsPermission();
+    await Future.delayed(const Duration(seconds: 1));
+    await _checkPermissions();
   }
 
   @override
@@ -45,35 +73,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               if (Platform.isAndroid) ...[
-                const _SectionHeader(title: 'App Blocking'),
-                Card(
-                  child: ListTile(
-                    leading: Icon(
-                      _overlayGranted
-                          ? Icons.check_circle_rounded
-                          : Icons.warning_rounded,
-                      color: _overlayGranted
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.error,
-                    ),
-                    title: const Text('Display over other apps'),
-                    subtitle: Text(
-                      _overlayGranted
-                          ? 'App blocking overlay is enabled'
-                          : 'Required for blocking apps when in use',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
-                    ),
-                    trailing: _overlayGranted
-                        ? null
-                        : FilledButton(
-                            onPressed: _requestOverlayPermission,
-                            child: const Text('Enable App Blocking'),
-                          ),
-                  ),
+                const _SectionHeader(title: 'App Blocking Permissions'),
+                _buildPermissionCard(
+                  context: context,
+                  title: 'Display over other apps',
+                  subtitle: _overlayGranted
+                      ? 'Enabled'
+                      : 'Required to show blocking screen',
+                  isGranted: _overlayGranted,
+                  onPressed: _requestOverlayPermission,
+                ),
+                const SizedBox(height: 8),
+                _buildPermissionCard(
+                  context: context,
+                  title: 'Usage Access',
+                  subtitle: _usageStatsGranted
+                      ? 'Enabled'
+                      : 'Required to detect when blocked apps are opened',
+                  isGranted: _usageStatsGranted,
+                  onPressed: _requestUsageStatsPermission,
                 ),
                 const SizedBox(height: 24),
               ],
@@ -85,7 +103,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: ExerciseSettingsSlider(
                     config: config,
                     onSave: (updated) => provider.updateExerciseConfig(updated),
-                    onTapAdvanced: () => _showExerciseConfig(context, provider, config),
+                    onTapAdvanced: () =>
+                        _showExerciseConfig(context, provider, config),
                   ),
                 );
               }),
@@ -123,6 +142,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 24),
               const _SectionHeader(title: 'About'),
               ListTile(
+                leading: const Icon(Icons.phone_android_rounded),
+                title: const Text('Cover Screen Setup'),
+                subtitle: const Text('Guide for Oppo N3 Flip & foldables'),
+                onTap: () => _showCoverScreenGuide(context),
+              ),
+              ListTile(
                 leading: const Icon(Icons.info_outline_rounded),
                 title: const Text('ExerScroll v1.0'),
                 subtitle: Text(
@@ -135,6 +160,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showCoverScreenGuide(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cover Screen Setup'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                'To use ExerScroll on the cover screen of Oppo N3 Flip or similar devices:'),
+            SizedBox(height: 16),
+            Text('1. Go to System Settings'),
+            Text('2. Select "Foldable features" or "Cover Screen"'),
+            Text('3. Tap "Apps on cover screen" or "Mini apps"'),
+            Text('4. Find ExerScroll and enable it'),
+            SizedBox(height: 16),
+            Text(
+                'This allows the blocking overlay to work when the phone is folded.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
       ),
     );
   }
@@ -228,7 +284,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Block from ${start.toString().padLeft(2, '0')}:00 to ${end.toString().padLeft(2, '0')}:00'),
+                Text(
+                    'Block from ${start.toString().padLeft(2, '0')}:00 to ${end.toString().padLeft(2, '0')}:00'),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -239,7 +296,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           DropdownButton<int>(
                             value: start,
                             isExpanded: true,
-                            items: List.generate(24, (i) => DropdownMenuItem(value: i, child: Text('${i.toString().padLeft(2, '0')}:00'))),
+                            items: List.generate(
+                                24,
+                                (i) => DropdownMenuItem(
+                                    value: i,
+                                    child: Text(
+                                        '${i.toString().padLeft(2, '0')}:00'))),
                             onChanged: (v) => setState(() => start = v ?? 20),
                           ),
                         ],
@@ -253,7 +315,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           DropdownButton<int>(
                             value: end,
                             isExpanded: true,
-                            items: List.generate(24, (i) => DropdownMenuItem(value: i, child: Text('${i.toString().padLeft(2, '0')}:00'))),
+                            items: List.generate(
+                                24,
+                                (i) => DropdownMenuItem(
+                                    value: i,
+                                    child: Text(
+                                        '${i.toString().padLeft(2, '0')}:00'))),
                             onChanged: (v) => setState(() => end = v ?? 7),
                           ),
                         ],
@@ -269,7 +336,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, (start: start, end: end)),
+                onPressed: () =>
+                    Navigator.pop(context, (start: start, end: end)),
                 child: const Text('Save'),
               ),
             ],
@@ -278,8 +346,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (result != null && context.mounted) {
-      await provider.setSchedule(true, startHour: result.start, endHour: result.end);
+      await provider.setSchedule(true,
+          startHour: result.start, endHour: result.end);
     }
+  }
+
+  Widget _buildPermissionCard({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required bool isGranted,
+    required VoidCallback onPressed,
+  }) {
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          isGranted ? Icons.check_circle_rounded : Icons.warning_rounded,
+          color: isGranted
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.error,
+        ),
+        title: Text(title),
+        subtitle: Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        trailing: isGranted
+            ? null
+            : FilledButton(
+                onPressed: onPressed,
+                child: const Text('Enable'),
+              ),
+      ),
+    );
   }
 }
 

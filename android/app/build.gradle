@@ -43,6 +43,7 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         setProperty("archivesBaseName", "Exerscroll")
+        manifestPlaceholders += [coverScreenSupport: 'true']
     }
 
     buildTypes {

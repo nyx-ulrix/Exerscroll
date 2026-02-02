@@ -1,22 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/blocked_app.dart';
 import '../models/exercise_config.dart';
 import '../models/time_bank.dart';
 import '../services/storage_service.dart';
+import '../services/usage_stats_service.dart';
 
 class AppStateProvider extends ChangeNotifier {
   final _storage = StorageService.instance;
+  final _usageService = UsageStatsService.instance;
 
   List<BlockedApp> _blockedApps = [];
   List<ExerciseConfig> _exerciseConfigs = [];
   double _bankedMinutes = 0;
   double _usedTodayMinutes = 0;
+  // Track total usage reported by OS for today to calculate deltas
+  double _lastKnownUsageTotal = 0;
   Map<String, DailyStats> _dailyStatsHistory = {};
   bool _scheduleEnabled = false;
   int _scheduleStartHour = 20;
   int _scheduleEndHour = 7;
   bool _isLoading = true;
+  Timer? _usageTimer;
 
   List<BlockedApp> get blockedApps => List.unmodifiable(_blockedApps);
   List<ExerciseConfig> get exerciseConfigs =>
@@ -51,6 +58,7 @@ class AppStateProvider extends ChangeNotifier {
     _exerciseConfigs = await _storage.getExerciseConfigs();
     _bankedMinutes = await _storage.getBankedMinutes();
     _usedTodayMinutes = await _storage.getUsedTodayMinutes();
+    _lastKnownUsageTotal = await _storage.getDailyUsageTotal();
     _dailyStatsHistory = await _storage.getDailyStatsHistory();
     _scheduleEnabled = await _storage.getScheduleEnabled();
     _scheduleStartHour = await _storage.getScheduleStartHour();
@@ -58,8 +66,47 @@ class AppStateProvider extends ChangeNotifier {
 
     await _maybeResetDailyIfNewDay();
 
+    _startUsageTracking();
+
     _isLoading = false;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _usageTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startUsageTracking() {
+    _usageTimer?.cancel();
+    _usageTimer =
+        Timer.periodic(const Duration(minutes: 1), (_) => _checkUsage());
+    // Check immediately too
+    _checkUsage();
+  }
+
+  Future<void> _checkUsage() async {
+    if (_blockedApps.isEmpty) return;
+
+    final packages = _blockedApps.map((a) => a.packageName).toList();
+    final currentTotal = await _usageService.getCumulativeUsageToday(packages);
+
+    if (currentTotal > _lastKnownUsageTotal) {
+      final delta = currentTotal - _lastKnownUsageTotal;
+      // Only deduct if delta is reasonable (e.g. positive)
+      // Also, if delta is huge (like > 24 hours), it might be a glitch or day change,
+      // but _maybeResetDailyIfNewDay handles day change.
+      if (delta > 0) {
+        await deductUsageTime(delta);
+        _lastKnownUsageTotal = currentTotal;
+        await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
+      }
+    } else if (currentTotal < _lastKnownUsageTotal) {
+      // Maybe day reset happened in OS usage stats or something
+      _lastKnownUsageTotal = currentTotal;
+      await _storage.saveDailyUsageTotal(_lastKnownUsageTotal);
+    }
   }
 
   Future<void> _maybeResetDailyIfNewDay() async {
@@ -75,7 +122,9 @@ class AppStateProvider extends ChangeNotifier {
           today.month != lastDate.month ||
           today.year != lastDate.year) {
         _usedTodayMinutes = 0;
+        _lastKnownUsageTotal = 0;
         await _storage.saveUsedTodayMinutes(0);
+        await _storage.saveDailyUsageTotal(0);
       }
     }
   }
@@ -88,7 +137,8 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   Future<void> removeBlockedApp(String packageName) async {
-    _blockedApps = _blockedApps.where((a) => a.packageName != packageName).toList();
+    _blockedApps =
+        _blockedApps.where((a) => a.packageName != packageName).toList();
     await _storage.saveBlockedApps(_blockedApps);
     notifyListeners();
   }
@@ -109,8 +159,7 @@ class AppStateProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  ExerciseConfig getConfigFor(ExerciseType type) =>
-      _exerciseConfigs.firstWhere(
+  ExerciseConfig getConfigFor(ExerciseType type) => _exerciseConfigs.firstWhere(
         (c) => c.type == type,
         orElse: () => ExerciseConfig(type: type),
       );
@@ -127,11 +176,15 @@ class AppStateProvider extends ChangeNotifier {
       date: stats.date,
       earnedMinutes: stats.earnedMinutes + minutes,
       usedMinutes: stats.usedMinutes,
-      pushupReps: type == ExerciseType.pushup ? stats.pushupReps + reps : stats.pushupReps,
-      pullupReps: type == ExerciseType.pullup ? stats.pullupReps + reps : stats.pullupReps,
+      pushupReps: type == ExerciseType.pushup
+          ? stats.pushupReps + reps
+          : stats.pushupReps,
+      pullupReps: type == ExerciseType.pullup
+          ? stats.pullupReps + reps
+          : stats.pullupReps,
     );
     _dailyStatsHistory[
-        '${stats.date.year}-${stats.date.month.toString().padLeft(2, '0')}-${stats.date.day.toString().padLeft(2, '0')}'] =
+            '${stats.date.year}-${stats.date.month.toString().padLeft(2, '0')}-${stats.date.day.toString().padLeft(2, '0')}'] =
         updated;
     await _storage.saveDailyStats(updated);
     notifyListeners();
@@ -152,7 +205,7 @@ class AppStateProvider extends ChangeNotifier {
       pullupReps: stats.pullupReps,
     );
     _dailyStatsHistory[
-        '${stats.date.year}-${stats.date.month.toString().padLeft(2, '0')}-${stats.date.day.toString().padLeft(2, '0')}'] =
+            '${stats.date.year}-${stats.date.month.toString().padLeft(2, '0')}-${stats.date.day.toString().padLeft(2, '0')}'] =
         updated;
     await _storage.saveDailyStats(updated);
     notifyListeners();

@@ -26,16 +26,18 @@ class DashboardContent extends StatelessWidget {
                   children: [
                     Text(
                       'ExerScroll',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Earn screen time through exercise',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],
@@ -118,54 +120,65 @@ class _TimeBankCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = bankedMinutes;
+    final totalAvailable = bankedMinutes + usedToday;
+    final progress = totalAvailable > 0 ? remaining / totalAvailable : 0.0;
+
+    final hours = remaining ~/ 60;
+    final minutes = (remaining % 60).toInt();
     final theme = Theme.of(context);
+
+    final color = remaining > 60
+        ? Colors.green
+        : remaining > 15
+            ? Colors.orange
+            : Colors.red;
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Banked time',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${remaining.toStringAsFixed(0)} min',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: bankedMinutes > 60 ? 1 : (bankedMinutes / 60).clamp(0, 1),
-                minHeight: 8,
-                backgroundColor: theme.colorScheme.surface,
-                valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+            Text(
+              'Time Remaining',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Used today: ${usedToday.toStringAsFixed(0)} min',
-              style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 24),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 160,
+                  height: 160,
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 12,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                    valueColor: AlwaysStoppedAnimation(color),
+                    strokeCap: StrokeCap.round,
                   ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${hours}h ${minutes}m',
+                      style: theme.textTheme.displayMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    if (usedToday > 0)
+                      Text(
+                        '-${usedToday.toStringAsFixed(0)}m used',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),
@@ -192,8 +205,8 @@ class _StatsOverview extends StatelessWidget {
             Text(
               "Today's stats",
               style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -225,8 +238,8 @@ class _StatsOverview extends StatelessWidget {
             Text(
               '${provider.blockedApps.length} apps blocked',
               style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -256,14 +269,14 @@ class _StatTile extends StatelessWidget {
         Text(
           value,
           style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -295,30 +308,32 @@ class _WeeklyChart extends StatelessWidget {
                   child: Text(
                     'No data yet. Start exercising!',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: stats.take(7).map((s) {
-                    final height = (s.earnedMinutes / maxEarned).clamp(0.1, 1.0);
+                    final height =
+                        (s.earnedMinutes / maxEarned).clamp(0.1, 1.0);
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Text(
                           s.earnedMinutes.toStringAsFixed(0),
                           style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Container(
                           width: 24,
                           height: 80.0 * height,
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                            color: theme.colorScheme.primary
+                                .withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -326,8 +341,8 @@ class _WeeklyChart extends StatelessWidget {
                         Text(
                           DateFormat('E').format(s.date).substring(0, 1),
                           style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     );
